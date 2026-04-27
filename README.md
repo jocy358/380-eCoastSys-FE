@@ -46,7 +46,7 @@ WORKING ON A VIDEO
 WORKING ON A VIDEO
 
 ### GitHub Project Board
-[eCoastSys Sprint Board](https://github.com/users/jocy358/projects/1))
+[eCoastSys Sprint Board](https://github.com/users/jocy358/projects/1)
 
 ### Sprints
 
