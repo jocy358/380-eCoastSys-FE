@@ -30,7 +30,7 @@ struct SpeciesSightingDTO: Codable, Identifiable {
 
 class CoastalAPIClient {
     static let shared = CoastalAPIClient()
-    private let baseURL = "http://localhost:8080/api"
+    private let baseURL = "https://380-ecoastsys-be-production.up.railway.app/api"
 
     func fetchReadings() async throws -> [WaterReadingDTO] {
         let url = URL(string: "\(baseURL)/readings")!
