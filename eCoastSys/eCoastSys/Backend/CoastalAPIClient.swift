@@ -28,7 +28,6 @@ struct SpeciesSightingDTO: Codable, Identifiable {
     let sightedAt: String
 }
 
-
 class CoastalAPIClient {
     static let shared = CoastalAPIClient()
     private let baseURL = "https://380-ecoastsys-be-production.up.railway.app/api"
@@ -39,29 +38,15 @@ class CoastalAPIClient {
         return try JSONDecoder().decode([WaterReadingDTO].self, from: data)
     }
 
+    func fetchSpecies() async throws -> [SpeciesSightingDTO] {
+        let url = URL(string: "\(baseURL)/species")!
+        let (data, _) = try await URLSession.shared.data(from: url)
+        return try JSONDecoder().decode([SpeciesSightingDTO].self, from: data)
+    }
+
     func fetchAnomalies() async throws -> [WaterReadingDTO] {
         let url = URL(string: "\(baseURL)/anomalies")!
         let (data, _) = try await URLSession.shared.data(from: url)
         return try JSONDecoder().decode([WaterReadingDTO].self, from: data)
-    }
-
-    func fetchAnomalies(forStation stationId: String) async throws -> [WaterReadingDTO] {
-        let url = URL(string: "\(baseURL)/anomalies?stationId=\(stationId)")!
-        let (data, _) = try await URLSession.shared.data(from: url)
-        return try JSONDecoder().decode([WaterReadingDTO].self, from: data)
-    }
-
-    func fetchReadings(forStation stationId: String, days: Int = 1) async throws -> [WaterReadingDTO] {
-        let url = URL(string: "\(baseURL)/readings?stationId=\(stationId)&days=\(days)")!
-        let (data, _) = try await URLSession.shared.data(from: url)
-        return try JSONDecoder().decode([WaterReadingDTO].self, from: data)
-    }
-
-    func fetchSpecies(group: String? = nil) async throws -> [SpeciesSightingDTO] {
-        var urlString = "\(baseURL)/species"
-        if let group = group { urlString += "?group=\(group)" }
-        let url = URL(string: urlString)!
-        let (data, _) = try await URLSession.shared.data(from: url)
-        return try JSONDecoder().decode([SpeciesSightingDTO].self, from: data)
     }
 }
