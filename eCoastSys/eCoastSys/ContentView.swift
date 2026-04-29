@@ -23,6 +23,7 @@ struct ContentView: View {
                     Label("Species", systemImage: "fish")
                 }
         }
+        .tint(.ecPrimary)
     }
 }
 
