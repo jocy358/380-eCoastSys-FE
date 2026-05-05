@@ -28,6 +28,15 @@ struct SpeciesSightingDTO: Codable, Identifiable {
     let sightedAt: String
 }
 
+struct MarineReadingDTO: Codable, Identifiable {
+    var id: String { time }
+    let time: String
+    let waveHeight: Double?
+    let waveDirection: Int?
+    let wavePeriod: Double?
+    let seaSurfaceTemperature: Double?
+}
+
 class CoastalAPIClient {
     static let shared = CoastalAPIClient()
     private let baseURL = "https://380-ecoastsys-be-production.up.railway.app/api"
@@ -68,5 +77,13 @@ class CoastalAPIClient {
         let url = URL(string: urlString)!
         let (data, _) = try await URLSession.shared.data(from: url)
         return try JSONDecoder().decode([SpeciesSightingDTO].self, from: data)
+    }
+
+    func fetchMarineReadings(latitude: Double, longitude: Double) async throws -> [MarineReadingDTO] {
+        let url = URL(string: "\(baseURL)/marine?lat=\(latitude)&lon=\(longitude)")!
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode([MarineReadingDTO].self, from: data)
     }
 }

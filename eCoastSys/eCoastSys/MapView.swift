@@ -180,10 +180,12 @@ struct StationDetailSheet: View {
 
     @State private var readings: [WaterReadingDTO] = []
     @State private var anomalies: [WaterReadingDTO] = []
+    @State private var marineReadings: [MarineReadingDTO] = []
     @State private var isLoading = true
     @State private var errorMessage: String? = nil
 
     private var latest: WaterReadingDTO? { readings.last }
+    private var currentMarine: MarineReadingDTO? { marineReadings.first }
 
     var body: some View {
         NavigationStack {
@@ -192,7 +194,7 @@ struct StationDetailSheet: View {
 
                 Group {
                     if isLoading {
-                        ProgressView("Loading NOAA data…")
+                        ProgressView("Loading data…")
                             .tint(Color.ecPrimary)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if let error = errorMessage {
@@ -202,25 +204,25 @@ struct StationDetailSheet: View {
                             description: Text(error)
                         )
                     } else if !station.hasTemperatureData {
-                        if readings.isEmpty {
+                        if marineReadings.isEmpty {
                             ContentUnavailableView(
-                                "No Tide Data Yet",
+                                "No Marine Data",
                                 systemImage: "water.waves.slash",
-                                description: Text("Tide predictions for \(station.name) haven't been ingested yet. Try triggering a refresh.")
+                                description: Text("Could not fetch Open-Meteo marine data for \(station.name).")
                             )
                         } else {
                             ScrollView {
                                 VStack(spacing: 16) {
-                                    // Tide-only stats card
-                                    if let r = latest {
-                                        TideOnlyCardView(reading: r)
+                                    // Marine stats card
+                                    if let m = currentMarine {
+                                        MarineStatsCard(reading: m)
                                     }
 
-                                    // Info banner
+                                    // Source banner
                                     HStack(spacing: 10) {
                                         Image(systemName: "info.circle.fill")
                                             .foregroundStyle(Color.ecSecondary)
-                                        Text("Water temperature is not available at this station. Showing NOAA tide predictions only.")
+                                        Text("Marine forecast from Open-Meteo. NOAA water temperature is unavailable at this station.")
                                             .font(.caption)
                                             .foregroundStyle(Color.ecSecondaryText)
                                     }
@@ -228,19 +230,35 @@ struct StationDetailSheet: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .background(Color.ecSecondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
 
-                                    // 24h tide history
-                                    SectionCard(title: "Tide Predictions — Last 24 h  (\(readings.count))") {
-                                        ForEach(readings.reversed()) { reading in
-                                            HStack {
-                                                Text(reading.recordedAt)
-                                                    .font(.caption).foregroundStyle(Color.ecSecondaryText)
+                                    // Hourly forecast
+                                    SectionCard(title: "24 h Marine Forecast (\(marineReadings.count) readings)") {
+                                        ForEach(marineReadings) { r in
+                                            HStack(alignment: .top) {
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(r.time)
+                                                        .font(.caption).foregroundStyle(Color.ecSecondaryText)
+                                                    if let sst = r.seaSurfaceTemperature {
+                                                        Text(String(format: "🌡 %.1f °C", sst))
+                                                            .font(.caption.monospacedDigit())
+                                                            .foregroundStyle(Color.ecText)
+                                                    }
+                                                }
                                                 Spacer()
-                                                Text(String(format: "%.2f m", reading.tideHeight))
-                                                    .font(.caption.monospacedDigit().bold())
-                                                    .foregroundStyle(Color.ecPrimary)
+                                                VStack(alignment: .trailing, spacing: 2) {
+                                                    if let wh = r.waveHeight {
+                                                        Text(String(format: "🌊 %.2f m", wh))
+                                                            .font(.caption.monospacedDigit().bold())
+                                                            .foregroundStyle(Color.ecPrimary)
+                                                    }
+                                                    if let wp = r.wavePeriod {
+                                                        Text(String(format: "⏱ %.1f s", wp))
+                                                            .font(.caption.monospacedDigit())
+                                                            .foregroundStyle(Color.ecSecondaryText)
+                                                    }
+                                                }
                                             }
                                             .padding(.vertical, 4)
-                                            if reading.id != readings.first?.id { Divider() }
+                                            if r.id != marineReadings.last?.id { Divider() }
                                         }
                                     }
                                 }
@@ -311,7 +329,7 @@ struct StationDetailSheet: View {
                 }
             }
             .navigationTitle(station.name)
-            .navigationSubtitle("NOAA Station \(station.id)")
+            .navigationSubtitle(station.hasTemperatureData ? "NOAA Station \(station.id)" : "Open-Meteo Marine")
             .navigationBarTitleDisplayMode(.inline)
         }
         .task { await fetchData() }
@@ -320,22 +338,29 @@ struct StationDetailSheet: View {
     private func fetchData() async {
         isLoading = true
         errorMessage = nil
-        do {
-            async let r = CoastalAPIClient.shared.fetchReadings(forStation: station.id, days: 1)
-            async let a = CoastalAPIClient.shared.fetchAnomalies(forStation: station.id)
-            readings  = try await r
-            anomalies = try await a
-        } catch {
-            errorMessage = error.localizedDescription
+        if station.hasTemperatureData {
+            do {
+                async let r = CoastalAPIClient.shared.fetchReadings(forStation: station.id, days: 1)
+                async let a = CoastalAPIClient.shared.fetchAnomalies(forStation: station.id)
+                readings  = try await r
+                anomalies = try await a
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        } else {
+            marineReadings = (try? await CoastalAPIClient.shared.fetchMarineReadings(
+                latitude: station.coordinate.latitude,
+                longitude: station.coordinate.longitude
+            )) ?? []
         }
         isLoading = false
     }
 }
 
-// MARK: - Tide-Only Card
+// MARK: - Marine Stats Card
 
-private struct TideOnlyCardView: View {
-    let reading: WaterReadingDTO
+private struct MarineStatsCard: View {
+    let reading: MarineReadingDTO
 
     var body: some View {
         RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -344,20 +369,26 @@ private struct TideOnlyCardView: View {
             .frame(height: 100)
             .overlay {
                 HStack(spacing: 0) {
-                    StatCell(value: String(format: "%.2f m", reading.tideHeight),
-                             label: "Tide Height",
-                             icon: "water.waves",
-                             color: Color.ecSecondary)
+                    StatCell(
+                        value: reading.waveHeight.map { String(format: "%.2f m", $0) } ?? "—",
+                        label: "Wave Height",
+                        icon: "water.waves",
+                        color: Color.ecSecondary
+                    )
                     Divider().padding(.vertical, 16)
-                    StatCell(value: "NOAA",
-                             label: "Predictions",
-                             icon: "chart.line.uptrend.xyaxis",
-                             color: Color.ecPrimary)
+                    StatCell(
+                        value: reading.wavePeriod.map { String(format: "%.1f s", $0) } ?? "—",
+                        label: "Wave Period",
+                        icon: "timer",
+                        color: Color.ecPrimary
+                    )
                     Divider().padding(.vertical, 16)
-                    StatCell(value: "—",
-                             label: "Temperature",
-                             icon: "thermometer.slash",
-                             color: Color.ecMuted)
+                    StatCell(
+                        value: reading.seaSurfaceTemperature.map { String(format: "%.1f°C", $0) } ?? "—",
+                        label: "Sea Temp",
+                        icon: "thermometer.medium",
+                        color: Color.ecMuted
+                    )
                 }
             }
     }
