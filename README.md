@@ -23,9 +23,8 @@ Users will open the app to the map view, with a navigation bar at the top of the
 ![coastal_swift_vapor_architecture](https://github.com/user-attachments/assets/34f71cdd-27ec-40cd-bea7-d470206ffc31)
 
 ## Live Demo
-> Interactive iOS prototype for the Coastal Dashboard
+<div style="position: relative; padding-bottom: 209.3023255813953%; height: 0;"><iframe src="https://www.loom.com/embed/dd0bee0ee959469abd0404cf9b520f12" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe></div>
 
-WORKING ON A VIDEO
 ---
 
 ## Unit 9 — Milestone 3
@@ -35,15 +34,14 @@ WORKING ON A VIDEO
 - [x] Create iOS Xcode project with tab bar
 - [x] Implement CoastalAPIClient networking layer
 - [x] Build Species view with real GBIF data and search
-- [ ] Build Map view with MapKit station pins
-- [ ] Build Charts view with Swift Charts temperature data
-- [ ] End-to-end test on physical device
+- [X] Build Map view with MapKit station pins
+- [X] Build Charts view with Swift Charts temperature data
+- [X] End-to-end test on physical device
 
 ### Build Progress
 
 > Sprint 3 demo — iOS app with tab bar and live species data from GBIF
-
-WORKING ON A VIDEO
+<div style="position: relative; padding-bottom: 209.3023255813953%; height: 0;"><iframe src="https://www.loom.com/embed/dd0bee0ee959469abd0404cf9b520f12" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe></div>
 
 ### GitHub Project Board
 [eCoastSys Sprint Board](https://github.com/users/jocy358/projects/1)
