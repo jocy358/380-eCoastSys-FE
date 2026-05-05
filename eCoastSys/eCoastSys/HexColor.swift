@@ -17,6 +17,8 @@ extension Color {
     static let ecText = Color(hex: "#1F1F1F")
     static let ecSecondaryText = Color(hex: "#6B7280")
     static let ecMuted = Color(hex: "#8BA5A1")
+    
+    static let ecWave = Color(hue: 0.58, saturation: 0.55, brightness: 0.70)
 }
 
 extension Color {
