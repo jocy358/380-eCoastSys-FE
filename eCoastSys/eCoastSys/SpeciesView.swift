@@ -14,7 +14,7 @@ struct SpeciesView: View {
     @State private var searchText = ""
     @State private var selectedGroup = "All"
  
-    let groups = ["All", "Marine mammals", "Birds", "Fish", "Invertebrates", "Marine"]
+    let groups = ["All", "Marine mammals", "Birds", "Invertebrates", "Marine"]
  
     var filtered: [SpeciesSightingDTO] {
         sightings.filter { sighting in
