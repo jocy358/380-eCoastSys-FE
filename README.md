@@ -23,36 +23,38 @@ Users will open the app to the map view, with a navigation bar at the top of the
 ![coastal_swift_vapor_architecture](https://github.com/user-attachments/assets/34f71cdd-27ec-40cd-bea7-d470206ffc31)
 
 ## Live Demo
-<div style="position: relative; padding-bottom: 209.3023255813953%; height: 0;"><iframe src="https://www.loom.com/embed/dd0bee0ee959469abd0404cf9b520f12" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe></div>
+[Watch Demo Video](https://www.loom.com/share/dd0bee0ee959469abd0404cf9b520f12)
 
 ---
 
 ## Unit 9 — Milestone 3
 
-### Sprint 3 Progress (In Progress)
+### Sprint 3 Progress (Completed)
 
 - [x] Create iOS Xcode project with tab bar
 - [x] Implement CoastalAPIClient networking layer
 - [x] Build Species view with real GBIF data and search
-- [X] Build Map view with MapKit station pins
-- [X] Build Charts view with Swift Charts temperature data
-- [X] End-to-end test on physical device
+- [x] Build Map view with MapKit station pins
+- [x] Build Charts view with Swift Charts temperature data
+- [x] End-to-end test on physical device
 
 ### Build Progress
 
-> Sprint 3 demo — iOS app with tab bar and live species data from GBIF
-<div style="position: relative; padding-bottom: 209.3023255813953%; height: 0;"><iframe src="https://www.loom.com/embed/dd0bee0ee959469abd0404cf9b520f12" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe></div>
+> Sprint 3 demo — Full iOS app with Map, Charts, and Species views connected to live backend
+
+[Watch Demo Video](https://www.loom.com/share/dd0bee0ee959469abd0404cf9b520f12)
 
 ### GitHub Project Board
 [eCoastSys Sprint Board](https://github.com/users/jocy358/projects/1)
 
 ### Sprints
 
-**Sprint 3 — iOS Views** (in progress)
+**Sprint 3 — iOS Views** ✅
 - Tab bar with Map, Charts, Species views
-- CoastalAPIClient connecting to Vapor backend
-- Species view loading real GBIF marine sightings from Monterey Bay
-- Map and Charts views remaining
+- CoastalAPIClient connecting to live Railway backend
+- Species view loading real GBIF marine sightings from Monterey Bay with group filters
+- Map view with MapKit station pins colour-coded by water quality
+- Charts view with Swift Charts temperature time-series and anomaly highlighting
 
 ---
 
@@ -61,26 +63,12 @@ Users will open the app to the map view, with a navigation bar at the top of the
 ### Requirements
 - Xcode 15+
 - iOS 16+
-- eCoastSys backend running locally via Docker
 
-### Backend Setup
-Make sure the backend is running before launching the app:
-```bash
-cd ../380-ecoSys
-docker compose up
-```
-
-Then ingest live data:
-```bash
-curl http://localhost:8080/ingest
-```
+### Backend
+The backend is deployed on Railway — no local setup needed. The app connects to:
+https://railway.com/project/bd6e6e48-4c61-4b7f-a36c-67c21a087bb5?environmentId=da255ce8-a792-4e2d-888c-4a4e423ddcf7
 
 ### Running the App
 1. Open `eCoastSys/eCoastSys.xcodeproj` in Xcode
 2. Select your simulator or device
 3. Hit Play
-
-### See more
-- [Backend Repository](https://github.com/jocy358/380-ecoSys)
-- [Vapor Website](https://vapor.codes)
-- [SwiftUI Documentation](https://developer.apple.com/xcode/swiftui)
