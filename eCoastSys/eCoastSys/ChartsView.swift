@@ -37,7 +37,6 @@ struct WaterQualityReading: Identifiable {
 }
 
 // MARK: - ViewModel Protocol
-// Wire this up to your CoastalAPIClient when ready.
 
 @MainActor
 protocol ChartsViewModelProtocol: ObservableObject {
@@ -52,8 +51,8 @@ protocol ChartsViewModelProtocol: ObservableObject {
 }
 
 enum TimeRange: String, CaseIterable {
-    case week  = "7D"
-    case month = "30D"
+    case week    = "7D"
+    case month   = "30D"
     case quarter = "90D"
 
     var days: Int {
@@ -65,7 +64,7 @@ enum TimeRange: String, CaseIterable {
     }
 }
 
-// MARK: - Mock ViewModel (replace with your real one)
+// MARK: - Mock ViewModel
 
 @MainActor
 final class MockChartsViewModel: ChartsViewModelProtocol {
@@ -79,11 +78,11 @@ final class MockChartsViewModel: ChartsViewModelProtocol {
 
     func fetchData(range: TimeRange) async {
         isLoading = true
-        try? await Task.sleep(nanoseconds: 600_000_000) // simulate network
+        try? await Task.sleep(nanoseconds: 600_000_000)
 
         let now = Date()
         let calendar = Calendar.current
-        let count = range.days * 4 // every 6 hours
+        let count = range.days * 4
 
         temperatureReadings = (0..<count).map { i in
             let date = calendar.date(byAdding: .hour, value: -(count - i) * 6, to: now)!
@@ -120,35 +119,20 @@ final class MockChartsViewModel: ChartsViewModelProtocol {
 
 struct ChartsView: View {
     @StateObject private var viewModel = MockChartsViewModel()
-    // To use your real ViewModel, replace with:
-    // @StateObject private var viewModel: YourChartsViewModel
-    // and inject it via init or @EnvironmentObject
-
     @State private var selectedRange: TimeRange = .week
 
     var body: some View {
         NavigationStack {
-            Group {
-                if viewModel.isLoading {
-                    loadingView
-                } else if let error = viewModel.errorMessage {
-                    errorView(message: error)
-                } else {
-                    chartsScrollView
-                }
-            }
-            .navigationTitle("Charts")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        // Swap out for your real station list
-                        ForEach(["Monterey Bay", "Moss Landing", "Santa Cruz"], id: \.self) { station in
-                            Button(station) { viewModel.selectedStation = station }
-                        }
-                    } label: {
-                        Label(viewModel.selectedStation, systemImage: "location.circle")
-                            .font(.subheadline)
+            ZStack {
+                Color.ecBackground.ignoresSafeArea()
+
+                Group {
+                    if viewModel.isLoading {
+                        loadingView
+                    } else if let error = viewModel.errorMessage {
+                        errorView(message: error)
+                    } else {
+                        chartsScrollView
                     }
                 }
             }
@@ -156,6 +140,8 @@ struct ChartsView: View {
             .onChange(of: selectedRange) { _, newRange in
                 Task { await viewModel.fetchData(range: newRange) }
             }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 
@@ -163,18 +149,57 @@ struct ChartsView: View {
 
     private var chartsScrollView: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(spacing: 16) {
+
+                // Title header — matches SpeciesView / MapView style
+                Text("Charts")
+                    .font(.largeTitle.bold())
+                    .foregroundStyle(Color.ecSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 10)
+                    .padding(.bottom, 4)
+
+                // Station picker
+                Menu {
+                    ForEach(["Monterey Bay", "Moss Landing", "Santa Cruz"], id: \.self) { station in
+                        Button(station) { viewModel.selectedStation = station }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "location.circle.fill")
+                            .foregroundStyle(Color.ecSecondary)
+                        Text(viewModel.selectedStation)
+                            .foregroundStyle(Color.ecText)
+                            .font(.subheadline)
+                        Image(systemName: "chevron.down")
+                            .font(.caption)
+                            .foregroundStyle(Color.ecMuted)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(Color.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(Color.ecSecondary, lineWidth: 1.8)
+                            )
+                    )
+                    .shadow(color: Color.ecSecondary.opacity(0.12), radius: 5, y: 2)
+                }
+
+                // Time range segmented picker styled to match theme
                 timeRangePicker
-                    .padding(.horizontal)
+                    .padding(.horizontal, 16)
 
                 TemperatureChartCard(readings: viewModel.temperatureReadings, range: selectedRange)
                 TideChartCard(readings: viewModel.tideReadings, range: selectedRange)
                 WaveChartCard(readings: viewModel.waveReadings, range: selectedRange)
                 WaterQualityChartCard(readings: viewModel.waterQualityReadings, range: selectedRange)
             }
-            .padding(.vertical)
+            .padding(.bottom, 20)
         }
-        .background(Color(.systemGroupedBackground))
+        .scrollContentBackground(.hidden)
     }
 
     private var timeRangePicker: some View {
@@ -184,13 +209,15 @@ struct ChartsView: View {
             }
         }
         .pickerStyle(.segmented)
+        .tint(Color.ecPrimary)
     }
 
     private var loadingView: some View {
         VStack(spacing: 12) {
             ProgressView()
+                .tint(Color.ecPrimary)
             Text("Loading readings…")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.ecText)
                 .font(.subheadline)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -223,18 +250,16 @@ struct TemperatureChartCard: View {
     var body: some View {
         ChartCard(
             title: "Water Temperature",
-            subtitle: "°C · \(anomalyCount) anomal\(anomalyCount == 1 ? "y" : "ies") detected",
-            accentColor: .ecPrimary
+            subtitle: "°C · \(anomalyCount) anomal\(anomalyCount == 1 ? "y" : "ies") detected"
         ) {
             Chart {
-                // Rolling average rule
                 RuleMark(y: .value("Avg", rollingAverage))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
-                    .foregroundStyle(.secondary.opacity(0.6))
+                    .foregroundStyle(Color.ecMuted)
                     .annotation(position: .trailing, alignment: .leading) {
                         Text(String(format: "%.1f°", rollingAverage))
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.ecMuted)
                     }
 
                 ForEach(readings) { reading in
@@ -263,11 +288,12 @@ struct TemperatureChartCard: View {
             .chartXAxis { eCoastSys.chartXAxis(for: range) }
             .chartYAxis {
                 AxisMarks(position: .leading) { value in
-                    AxisGridLine()
+                    AxisGridLine().foregroundStyle(Color.ecMuted.opacity(0.3))
                     AxisTick()
                     if let number = value.as(Double.self) {
                         AxisValueLabel {
                             Text(number.formatted(.number.precision(.fractionLength(0...1))))
+                                .foregroundStyle(Color.ecText)
                         }
                     }
                 }
@@ -282,11 +308,7 @@ struct TideChartCard: View {
     let range: TimeRange
 
     var body: some View {
-        ChartCard(
-            title: "Tide Level",
-            subtitle: "Meters above MLLW",
-            accentColor: .ecSecondary
-        ) {
+        ChartCard(title: "Tide Level", subtitle: "Meters above MLLW") {
             Chart(readings) { reading in
                 AreaMark(
                     x: .value("Date", reading.date),
@@ -294,7 +316,7 @@ struct TideChartCard: View {
                 )
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [Color.ecSecondary.opacity(0.4), Color.ecSecondary.opacity(0.05)],
+                        colors: [Color.ecSecondary.opacity(0.35), Color.ecSecondary.opacity(0.05)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -309,6 +331,13 @@ struct TideChartCard: View {
                 .interpolationMethod(.catmullRom)
             }
             .chartXAxis { eCoastSys.chartXAxis(for: range) }
+            .chartYAxis {
+                AxisMarks(position: .leading) { _ in
+                    AxisGridLine().foregroundStyle(Color.ecMuted.opacity(0.3))
+                    AxisTick()
+                    AxisValueLabel().foregroundStyle(Color.ecText)
+                }
+            }
             .chartYAxisLabel("m", alignment: .trailing)
         }
     }
@@ -325,8 +354,7 @@ struct WaveChartCard: View {
     var body: some View {
         ChartCard(
             title: "Wave Height",
-            subtitle: String(format: "Significant height · Peak %.1f m", maxWave),
-            accentColor: .ecWave
+            subtitle: String(format: "Significant height · Peak %.1f m", maxWave)
         ) {
             Chart(readings) { reading in
                 BarMark(
@@ -341,6 +369,13 @@ struct WaveChartCard: View {
                 .cornerRadius(2)
             }
             .chartXAxis { eCoastSys.chartXAxis(for: range) }
+            .chartYAxis {
+                AxisMarks(position: .leading) { _ in
+                    AxisGridLine().foregroundStyle(Color.ecMuted.opacity(0.3))
+                    AxisTick()
+                    AxisValueLabel().foregroundStyle(Color.ecText)
+                }
+            }
             .chartYAxisLabel("m", alignment: .trailing)
         }
     }
@@ -373,8 +408,7 @@ struct WaterQualityChartCard: View {
     var body: some View {
         ChartCard(
             title: "Water Quality Index",
-            subtitle: "0–100 · Currently \(qualityLabel)",
-            accentColor: qualityColor
+            subtitle: "0–100 · Currently \(qualityLabel)"
         ) {
             Chart(readings) { reading in
                 LineMark(
@@ -399,15 +433,21 @@ struct WaterQualityChartCard: View {
             }
             .chartYScale(domain: 0...100)
             .chartXAxis { eCoastSys.chartXAxis(for: range) }
+            .chartYAxis {
+                AxisMarks(position: .leading) { _ in
+                    AxisGridLine().foregroundStyle(Color.ecMuted.opacity(0.3))
+                    AxisTick()
+                    AxisValueLabel().foregroundStyle(Color.ecText)
+                }
+            }
             .chartYAxisLabel("Index", alignment: .trailing)
-            // Threshold zones
             .chartBackground { _ in
                 VStack(spacing: 0) {
-                    Color.red.opacity(0.04)        // 0–60 poor
+                    Color.red.opacity(0.04)
                         .frame(maxHeight: .infinity)
-                    Color.orange.opacity(0.04)     // 60–80 fair
+                    Color.orange.opacity(0.04)
                         .frame(maxHeight: .infinity)
-                    Color.green.opacity(0.04)      // 80–100 good
+                    Color.green.opacity(0.04)
                         .frame(maxHeight: .infinity)
                 }
             }
@@ -420,7 +460,6 @@ struct WaterQualityChartCard: View {
 struct ChartCard<ChartContent: View>: View {
     let title: String
     let subtitle: String
-    let accentColor: Color
     @ViewBuilder let chart: () -> ChartContent
 
     var body: some View {
@@ -428,19 +467,26 @@ struct ChartCard<ChartContent: View>: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.headline)
+                    .foregroundStyle(Color.ecText)
                 Text(subtitle)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.ecSecondaryText)
             }
 
             chart()
                 .frame(height: 180)
         }
         .padding()
-        .background(.background)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
-        .padding(.horizontal)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.ecSecondary, lineWidth: 1.8)
+                )
+        )
+        .shadow(color: Color.ecSecondary.opacity(0.25), radius: 8, y: 3)
+        .padding(.horizontal, 16)
     }
 }
 
@@ -467,18 +513,8 @@ private func chartXAxis(for range: TimeRange) -> some AxisContent {
     }
 }
 
-// MARK: - Color Extensions
-// Add these to your existing Color+Extensions file or Assets.xcassets.
-// If you already have ecPrimary defined, remove the duplicates here.
-//extension Color {
-//    static let ecPrimary = Color(hue: 0.56, saturation: 0.65, brightness: 0.65)
-//    static let ecSecondary = Color(hue: 0.58, saturation: 0.30, brightness: 0.75)
-//    static let ecWave = Color(hue: 0.58, saturation: 0.55, brightness: 0.70) // add this
-//}
-
 // MARK: - Preview
 
 #Preview {
     ChartsView()
 }
-
