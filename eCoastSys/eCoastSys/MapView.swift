@@ -86,7 +86,7 @@ struct MapView: View {
                             }
 
                             ForEach(speciesSightings) { sighting in
-                                Annotation(sighting.speciesName, coordinate: CLLocationCoordinate2D(latitude: sighting.latitude, longitude: sighting.longitude)) {
+                                Annotation(commonName(for: sighting), coordinate: CLLocationCoordinate2D(latitude: sighting.latitude, longitude: sighting.longitude)) {
                                     Button { selectedSighting = sighting } label: {
                                         ZStack {
                                             Circle().fill(Color.ecSecondary.opacity(0.85)).frame(width: 13, height: 13)
@@ -415,11 +415,6 @@ private struct StatsCardView: View {
                              label: "Tide Height",
                              icon: "water.waves",
                              color: Color.ecSecondary)
-                    Divider().padding(.vertical, 16)
-                    StatCell(value: "\(reading.qualityIndex)",
-                             label: "Quality Index",
-                             icon: "checkmark.seal",
-                             color: reading.qualityIndex >= 80 ? Color.ecPrimary : Color.ecTan)
                 }
             }
     }
@@ -471,6 +466,92 @@ private struct SectionCard<Content: View>: View {
     }
 }
 
+func commonName(for sighting: SpeciesSightingDTO) -> String {
+    let names: [String: String] = [
+        // Marine mammals
+        "Enhydra lutris": "Sea Otter",
+        "Grampus griseus": "Risso's Dolphin",
+        // Birds
+        "Anas platyrhynchos": "Mallard Duck",
+        "Ardea alba": "Great Egret",
+        "Buteo jamaicensis": "Red-tailed Hawk",
+        "Egretta thula": "Snowy Egret",
+        "Euphagus cyanocephalus": "Brewer's Blackbird",
+        "Fulica americana": "American Coot",
+        "Larus brachyrhynchus": "Short-billed Gull",
+        "Larus occidentalis": "Western Gull",
+        "Melospiza lincolnii": "Lincoln's Sparrow",
+        "Numenius americanus": "Long-billed Curlew",
+        "Pipilo maculatus": "Spotted Towhee",
+        "Sialia mexicana": "Western Bluebird",
+        "Sitta pygmaea": "Pygmy Nuthatch",
+        "Turdus migratorius": "American Robin",
+        "Zonotrichia atricapilla": "Golden-crowned Sparrow",
+        "Zonotrichia leucophrys": "White-crowned Sparrow",
+        "Aphelocoma californica": "California Scrub-Jay",
+        // Invertebrates
+        "Acanthodoris rhodoceras": "Horned Nudibranch",
+        "Aldisa sanguinea": "Red Aldisa Nudibranch",
+        "Anthopleura artemisia": "Moonglow Anemone",
+        "Anthopleura sola": "Sunburst Anemone",
+        "Cadlina luteomarginata": "Yellow-edged Cadlina",
+        "Calliostoma ligatum": "Blue Top Snail",
+        "Clinocottus analis": "Wooly Sculpin",
+        "Diaulula sandiegensis": "Ring-spotted Dorid",
+        "Dirona picta": "Painted Dirona",
+        "Doriopsilla albopunctata": "White-spotted Doris",
+        "Doriopsilla fulva": "Tawny Doris",
+        "Doris montereyensis": "Monterey Doris",
+        "Henricia pumila": "Blood Star",
+        "Hermissenda opalescens": "Opalescent Nudibranch",
+        "Lepidozona mertensii": "Merten's Chiton",
+        "Lissothuria nutriens": "Sea Cucumber",
+        "Pachygrapsus crassipes": "Striped Shore Crab",
+        "Pagurus venturensis": "Hermit Crab",
+        "Peltodoris nobilis": "Noble Sea Lemon",
+        "Pentidotea aculeata": "Kelp Isopod",
+        "Phidiana hiltoni": "Hilton's Aeolid",
+        "Pisaster ochraceus": "Ochre Sea Star",
+        "Pugettia richii": "Kelp Crab",
+        "Strongylocentrotus purpuratus": "Purple Sea Urchin",
+        "Tetraclita rubescens": "Pink Acorn Barnacle",
+        "Triopha maculata": "Spotted Triopha",
+        // Amphibians
+        "Ambystoma californiense": "California Tiger Salamander",
+        "Ambystoma macrodactylum": "Long-toed Salamander",
+        "Aneides lugubris": "Arboreal Salamander",
+        "Ensatina eschscholtzii": "Ensatina Salamander",
+        // Plants and fungi (Marine catch-all)
+        "Arctostaphylos andersonii": "Heartleaf Manzanita",
+        "Arctostaphylos nummularia": "Fort Bragg Manzanita",
+        "Armillaria mellea": "Honey Mushroom",
+        "Baccharis pilularis": "Coyote Brush",
+        "Diplacus aurantiacus": "Sticky Monkeyflower",
+        "Ericameria arborescens": "Golden Fleece",
+        "Heteromeles arbutifolia": "Toyon",
+        "Laccaria amethysteo-occidentalis": "Western Amethyst Laccaria",
+        "Lactarius rubidus": "Candy Cap Mushroom",
+        "Patiria miniata": "Bat Star",
+        "Pelvetiopsis limitata": "Rockweed",
+        "Rhopalomyia californica": "Coyote Brush Gall Midge",
+        "Vaccinium ovatum": "California Huckleberry",
+        "Odocoileus hemionus": "Mule Deer",
+        "Gibbonsia montereyensis": "Crevice Kelpfish",
+    ]
+    for (scientific, common) in names {
+        if sighting.scientificName.lowercased().hasPrefix(scientific.lowercased()) {
+            return common
+        }
+    }
+    let parts = sighting.speciesName
+        .components(separatedBy: " ")
+        .filter { !$0.contains(",") && !$0.first!.isUppercase || $0 == sighting.speciesName.components(separatedBy: " ").first }
+    if parts.count >= 2 {
+        return parts.prefix(2).joined(separator: " ")
+    }
+    return sighting.speciesName
+}
+
 // MARK: - Species Sighting Sheet
 
 struct SpeciesSightingSheet: View {
@@ -484,14 +565,16 @@ struct SpeciesSightingSheet: View {
                 ScrollView {
                     VStack(spacing: 16) {
                         SectionCard(title: "Identification") {
-                            InfoRow(label: "Common Name", value: sighting.speciesName)
+                            InfoRow(label: "Common Name", value: commonName(for: sighting))
                             Divider()
                             HStack {
                                 Text("Scientific Name")
                                     .font(.subheadline)
                                     .foregroundStyle(Color.ecSecondaryText)
                                 Spacer()
-                                Text(sighting.scientificName)
+                                Text(sighting.scientificName
+                                    .components(separatedBy: "(").first?
+                                    .trimmingCharacters(in: .whitespaces) ?? sighting.scientificName)
                                     .font(.subheadline).italic()
                                     .foregroundStyle(Color.ecText)
                             }

@@ -80,10 +80,38 @@ class CoastalAPIClient {
     }
 
     func fetchMarineReadings(latitude: Double, longitude: Double) async throws -> [MarineReadingDTO] {
-        let url = URL(string: "\(baseURL)/marine?lat=\(latitude)&lon=\(longitude)")!
+        let urlString = "https://marine-api.open-meteo.com/v1/marine"
+            + "?latitude=\(latitude)"
+            + "&longitude=\(longitude)"
+            + "&hourly=wave_height,wave_direction,wave_period,sea_surface_temperature"
+            + "&forecast_days=1"
+            + "&timezone=America%2FLos_Angeles"
+        let url = URL(string: urlString)!
         let (data, _) = try await URLSession.shared.data(from: url)
+
+        struct OpenMeteoResponse: Codable {
+            let hourly: HourlyData
+            struct HourlyData: Codable {
+                let time: [String]
+                let waveHeight: [Double?]
+                let waveDirection: [Int?]
+                let wavePeriod: [Double?]
+                let seaSurfaceTemperature: [Double?]
+            }
+        }
+
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode([MarineReadingDTO].self, from: data)
+        let response = try decoder.decode(OpenMeteoResponse.self, from: data)
+
+        return zip(response.hourly.time.indices, response.hourly.time).map { i, time in
+            MarineReadingDTO(
+                time: time,
+                waveHeight: response.hourly.waveHeight[i],
+                waveDirection: response.hourly.waveDirection[i],
+                wavePeriod: response.hourly.wavePeriod[i],
+                seaSurfaceTemperature: response.hourly.seaSurfaceTemperature[i]
+            )
+        }
     }
 }
