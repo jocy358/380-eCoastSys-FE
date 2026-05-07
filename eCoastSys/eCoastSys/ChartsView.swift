@@ -3,7 +3,6 @@
 //  eCoastSys
 //
 //  Created by Miguel O on 4/27/26.
-//  Worked on by Lily S on 05/04/26
 
 import SwiftUI
 import Combine
@@ -14,26 +13,26 @@ import Charts
 struct TemperatureReading: Identifiable {
     let id = UUID()
     let date: Date
-    let value: Double       // °C
+    let value: Double
     let isAnomaly: Bool
 }
 
 struct TideReading: Identifiable {
     let id = UUID()
     let date: Date
-    let value: Double       // meters MLLW
+    let value: Double
 }
 
 struct WaveReading: Identifiable {
     let id = UUID()
     let date: Date
-    let value: Double       // meters significant wave height
+    let value: Double
 }
 
 struct WaterQualityReading: Identifiable {
     let id = UUID()
     let date: Date
-    let value: Double       // 0–100 index
+    let value: Double
 }
 
 // MARK: - ViewModel Protocol
@@ -64,51 +63,93 @@ enum TimeRange: String, CaseIterable {
     }
 }
 
-// MARK: - Mock ViewModel
+// MARK: - Real ViewModel
 
 @MainActor
-final class MockChartsViewModel: ChartsViewModelProtocol {
+final class RealChartsViewModel: ChartsViewModelProtocol {
     @Published var temperatureReadings: [TemperatureReading] = []
     @Published var tideReadings: [TideReading] = []
     @Published var waveReadings: [WaveReading] = []
     @Published var waterQualityReadings: [WaterQualityReading] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String? = nil
-    @Published var selectedStation: String = "Monterey Bay"
+    @Published var selectedStation: String = "Monterey Bay" {
+        didSet { Task { await fetchData(range: currentRange) } }
+    }
+
+    private var currentRange: TimeRange = .week
+
+    var hasTemperatureData: Bool { selectedStation == "Monterey Bay" }
+
+    private var stationId: String {
+        switch selectedStation {
+        case "Moss Landing": return "9413616"
+        case "Santa Cruz":   return "9413745"
+        default:             return "9413450"
+        }
+    }
+
+    private var stationCoordinate: (lat: Double, lon: Double) {
+        switch selectedStation {
+        case "Moss Landing": return (36.8027, -121.7874)
+        case "Santa Cruz":   return (36.9618, -122.0183)
+        default:             return (36.6050, -121.8886)
+        }
+    }
 
     func fetchData(range: TimeRange) async {
+        currentRange = range
         isLoading = true
-        try? await Task.sleep(nanoseconds: 600_000_000)
+        errorMessage = nil
+        temperatureReadings = []
+        tideReadings = []
+        waveReadings = []
+        waterQualityReadings = []
 
-        let now = Date()
-        let calendar = Calendar.current
-        let count = range.days * 4
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let fallback = ISO8601DateFormatter()
+        fallback.formatOptions = [.withInternetDateTime]
 
-        temperatureReadings = (0..<count).map { i in
-            let date = calendar.date(byAdding: .hour, value: -(count - i) * 6, to: now)!
-            let base = 14.0 + sin(Double(i) / 12) * 2.5
-            let noise = Double.random(in: -0.6...0.6)
-            let isAnomaly = i == count / 3 || i == count * 2 / 3
-            let value = isAnomaly ? base + Double.random(in: 4...6) : base + noise
-            return TemperatureReading(date: date, value: value, isAnomaly: isAnomaly)
+        func parseDate(_ str: String) -> Date {
+            formatter.date(from: str) ?? fallback.date(from: str) ?? Date()
         }
 
-        tideReadings = (0..<count).map { i in
-            let date = calendar.date(byAdding: .hour, value: -(count - i) * 6, to: now)!
-            let value = sin(Double(i) / 2.0 * .pi / 6) * 0.9 + 0.9 + Double.random(in: -0.1...0.1)
-            return TideReading(date: date, value: value)
-        }
+        if hasTemperatureData {
+            do {
+                let readings = try await CoastalAPIClient.shared.fetchReadings(
+                    forStation: stationId, days: range.days)
+                temperatureReadings = readings.map {
+                    TemperatureReading(date: parseDate($0.recordedAt),
+                                       value: $0.temperature,
+                                       isAnomaly: $0.isAnomaly)
+                }
+                tideReadings = readings.map {
+                    TideReading(date: parseDate($0.recordedAt), value: $0.tideHeight)
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        } else {
+            do {
+                let coord = stationCoordinate
+                let marine = try await CoastalAPIClient.shared.fetchMarineReadings(
+                    latitude: coord.lat, longitude: coord.lon)
 
-        waveReadings = (0..<count).map { i in
-            let date = calendar.date(byAdding: .hour, value: -(count - i) * 6, to: now)!
-            let value = max(0.2, 1.8 + sin(Double(i) / 8) * 1.2 + Double.random(in: -0.3...0.3))
-            return WaveReading(date: date, value: value)
-        }
+                let df = DateFormatter()
+                df.dateFormat = "yyyy-MM-dd'T'HH:mm"
 
-        waterQualityReadings = (0..<count).map { i in
-            let date = calendar.date(byAdding: .hour, value: -(count - i) * 6, to: now)!
-            let value = min(100, max(0, 78 + sin(Double(i) / 10) * 12 + Double.random(in: -5...5)))
-            return WaterQualityReading(date: date, value: value)
+                waveReadings = marine.compactMap { r in
+                    guard let wh = r.waveHeight, let date = df.date(from: r.time) else { return nil }
+                    return WaveReading(date: date, value: wh)
+                }
+                tideReadings = marine.compactMap { r in
+                    guard let sst = r.seaSurfaceTemperature, let date = df.date(from: r.time) else { return nil }
+                    return TideReading(date: date, value: sst)
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
 
         isLoading = false
@@ -118,14 +159,13 @@ final class MockChartsViewModel: ChartsViewModelProtocol {
 // MARK: - Main View
 
 struct ChartsView: View {
-    @StateObject private var viewModel = MockChartsViewModel()
+    @StateObject private var viewModel = RealChartsViewModel()
     @State private var selectedRange: TimeRange = .week
 
     var body: some View {
         NavigationStack {
             ZStack {
                 Color.ecBackground.ignoresSafeArea()
-
                 Group {
                     if viewModel.isLoading {
                         loadingView
@@ -150,8 +190,6 @@ struct ChartsView: View {
     private var chartsScrollView: some View {
         ScrollView {
             VStack(spacing: 16) {
-
-                // Title header — matches SpeciesView / MapView style
                 Text("Charts")
                     .font(.largeTitle.bold())
                     .foregroundStyle(Color.ecSecondary)
@@ -180,22 +218,50 @@ struct ChartsView: View {
                     .background(
                         RoundedRectangle(cornerRadius: 14)
                             .fill(Color.white)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14)
-                                    .stroke(Color.ecSecondary, lineWidth: 1.8)
-                            )
+                            .overlay(RoundedRectangle(cornerRadius: 14)
+                                .stroke(Color.ecSecondary, lineWidth: 1.8))
                     )
                     .shadow(color: Color.ecSecondary.opacity(0.12), radius: 5, y: 2)
                 }
 
-                // Time range segmented picker styled to match theme
-                timeRangePicker
-                    .padding(.horizontal, 16)
+                timeRangePicker.padding(.horizontal, 16)
 
-                TemperatureChartCard(readings: viewModel.temperatureReadings, range: selectedRange)
-                TideChartCard(readings: viewModel.tideReadings, range: selectedRange)
-                WaveChartCard(readings: viewModel.waveReadings, range: selectedRange)
-                WaterQualityChartCard(readings: viewModel.waterQualityReadings, range: selectedRange)
+                // Show different charts based on station
+                if viewModel.hasTemperatureData {
+                    // Monterey — temperature + tide
+                    TemperatureChartCard(readings: viewModel.temperatureReadings, range: selectedRange)
+                    TideChartCard(
+                        readings: viewModel.tideReadings,
+                        range: selectedRange,
+                        title: "Tide Level",
+                        subtitle: "Meters above MLLW",
+                        unit: "m"
+                    )
+                } else {
+                    // Moss Landing / Santa Cruz — sea temp + wave height
+                    TideChartCard(
+                        readings: viewModel.tideReadings,
+                        range: selectedRange,
+                        title: "Sea Surface Temperature",
+                        subtitle: "°C from Open-Meteo Marine",
+                        unit: "°C"
+                    )
+                    WaveChartCard(readings: viewModel.waveReadings, range: selectedRange)
+
+                    // Info banner
+                    HStack(spacing: 10) {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundStyle(Color.ecSecondary)
+                        Text("NOAA water temperature unavailable at this station. Showing Open-Meteo marine forecast.")
+                            .font(.caption)
+                            .foregroundStyle(Color.ecSecondaryText)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.ecSecondary.opacity(0.08),
+                                in: RoundedRectangle(cornerRadius: 12))
+                    .padding(.horizontal, 16)
+                }
             }
             .padding(.bottom, 20)
         }
@@ -214,8 +280,7 @@ struct ChartsView: View {
 
     private var loadingView: some View {
         VStack(spacing: 12) {
-            ProgressView()
-                .tint(Color.ecPrimary)
+            ProgressView().tint(Color.ecPrimary)
             Text("Loading readings…")
                 .foregroundStyle(Color.ecText)
                 .font(.subheadline)
@@ -243,9 +308,7 @@ struct TemperatureChartCard: View {
         return readings.map(\.value).reduce(0, +) / Double(readings.count)
     }
 
-    private var anomalyCount: Int {
-        readings.filter(\.isAnomaly).count
-    }
+    private var anomalyCount: Int { readings.filter(\.isAnomaly).count }
 
     var body: some View {
         ChartCard(
@@ -306,26 +369,25 @@ struct TemperatureChartCard: View {
 struct TideChartCard: View {
     let readings: [TideReading]
     let range: TimeRange
+    var title: String = "Tide Level"
+    var subtitle: String = "Meters above MLLW"
+    var unit: String = "m"
 
     var body: some View {
-        ChartCard(title: "Tide Level", subtitle: "Meters above MLLW") {
+        ChartCard(title: title, subtitle: subtitle) {
             Chart(readings) { reading in
                 AreaMark(
                     x: .value("Date", reading.date),
-                    y: .value("Tide", reading.value)
+                    y: .value("Value", reading.value)
                 )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color.ecSecondary.opacity(0.35), Color.ecSecondary.opacity(0.05)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .foregroundStyle(LinearGradient(
+                    colors: [Color.ecSecondary.opacity(0.35), Color.ecSecondary.opacity(0.05)],
+                    startPoint: .top, endPoint: .bottom))
                 .interpolationMethod(.catmullRom)
 
                 LineMark(
                     x: .value("Date", reading.date),
-                    y: .value("Tide", reading.value)
+                    y: .value("Value", reading.value)
                 )
                 .foregroundStyle(Color.ecSecondary)
                 .interpolationMethod(.catmullRom)
@@ -338,7 +400,7 @@ struct TideChartCard: View {
                     AxisValueLabel().foregroundStyle(Color.ecText)
                 }
             }
-            .chartYAxisLabel("m", alignment: .trailing)
+            .chartYAxisLabel(unit, alignment: .trailing)
         }
     }
 }
@@ -347,9 +409,7 @@ struct WaveChartCard: View {
     let readings: [WaveReading]
     let range: TimeRange
 
-    private var maxWave: Double {
-        readings.map(\.value).max() ?? 0
-    }
+    private var maxWave: Double { readings.map(\.value).max() ?? 0 }
 
     var body: some View {
         ChartCard(
@@ -361,11 +421,7 @@ struct WaveChartCard: View {
                     x: .value("Date", reading.date),
                     y: .value("Wave", reading.value)
                 )
-                .foregroundStyle(
-                    Color.ecWave.opacity(
-                        0.5 + (reading.value / max(maxWave, 1)) * 0.5
-                    )
-                )
+                .foregroundStyle(Color.ecWave.opacity(0.5 + (reading.value / max(maxWave, 1)) * 0.5))
                 .cornerRadius(2)
             }
             .chartXAxis { eCoastSys.chartXAxis(for: range) }
@@ -377,80 +433,6 @@ struct WaveChartCard: View {
                 }
             }
             .chartYAxisLabel("m", alignment: .trailing)
-        }
-    }
-}
-
-struct WaterQualityChartCard: View {
-    let readings: [WaterQualityReading]
-    let range: TimeRange
-
-    private var latestQuality: Double {
-        readings.last?.value ?? 0
-    }
-
-    private var qualityLabel: String {
-        switch latestQuality {
-        case 80...: return "Good"
-        case 60..<80: return "Fair"
-        default: return "Poor"
-        }
-    }
-
-    private var qualityColor: Color {
-        switch latestQuality {
-        case 80...: return .green
-        case 60..<80: return .orange
-        default: return .red
-        }
-    }
-
-    var body: some View {
-        ChartCard(
-            title: "Water Quality Index",
-            subtitle: "0–100 · Currently \(qualityLabel)"
-        ) {
-            Chart(readings) { reading in
-                LineMark(
-                    x: .value("Date", reading.date),
-                    y: .value("Quality", reading.value)
-                )
-                .foregroundStyle(qualityColor.gradient)
-                .interpolationMethod(.monotone)
-
-                AreaMark(
-                    x: .value("Date", reading.date),
-                    y: .value("Quality", reading.value)
-                )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [qualityColor.opacity(0.25), .clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .interpolationMethod(.monotone)
-            }
-            .chartYScale(domain: 0...100)
-            .chartXAxis { eCoastSys.chartXAxis(for: range) }
-            .chartYAxis {
-                AxisMarks(position: .leading) { _ in
-                    AxisGridLine().foregroundStyle(Color.ecMuted.opacity(0.3))
-                    AxisTick()
-                    AxisValueLabel().foregroundStyle(Color.ecText)
-                }
-            }
-            .chartYAxisLabel("Index", alignment: .trailing)
-            .chartBackground { _ in
-                VStack(spacing: 0) {
-                    Color.red.opacity(0.04)
-                        .frame(maxHeight: .infinity)
-                    Color.orange.opacity(0.04)
-                        .frame(maxHeight: .infinity)
-                    Color.green.opacity(0.04)
-                        .frame(maxHeight: .infinity)
-                }
-            }
         }
     }
 }
@@ -472,18 +454,14 @@ struct ChartCard<ChartContent: View>: View {
                     .font(.caption)
                     .foregroundStyle(Color.ecSecondaryText)
             }
-
-            chart()
-                .frame(height: 180)
+            chart().frame(height: 180)
         }
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color.white)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.ecSecondary, lineWidth: 1.8)
-                )
+                .overlay(RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.ecSecondary, lineWidth: 1.8))
         )
         .shadow(color: Color.ecSecondary.opacity(0.25), radius: 8, y: 3)
         .padding(.horizontal, 16)
