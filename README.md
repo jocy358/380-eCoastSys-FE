@@ -42,7 +42,7 @@ Users will open the app to the map view, with a navigation bar at the top of the
 
 > Sprint 3 demo — Full iOS app with Map, Charts, and Species views connected to live backend
 
-[Watch Demo Video](https://www.loom.com/share/dd0bee0ee959469abd0404cf9b520f12)
+[Watch Demo Video](https://www.loom.com/share/1b80ee5d815b40b39dc546f3802e5e05)
 
 ### GitHub Project Board
 [eCoastSys Sprint Board](https://github.com/users/jocy358/projects/1)
