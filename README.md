@@ -23,7 +23,7 @@ Users will open the app to the map view, with a navigation bar at the top of the
 ![coastal_swift_vapor_architecture](https://github.com/user-attachments/assets/34f71cdd-27ec-40cd-bea7-d470206ffc31)
 
 ## Live Demo
-[Watch Demo Video](https://www.loom.com/share/dd0bee0ee959469abd0404cf9b520f12)
+[Watch Demo Video](https://www.loom.com/share/1b80ee5d815b40b39dc546f3802e5e05)
 
 ---
 
